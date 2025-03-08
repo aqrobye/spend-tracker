@@ -7,6 +7,7 @@ import ExpenseList from "@/components/ExpenseList";
 import Reports from "@/components/Reports";
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { motion } from "framer-motion";
+import ImportExportButtons from "@/components/ImportExportButtons";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('add');
@@ -22,6 +23,9 @@ const Index = () => {
         >
           <h1 className="text-4xl font-bold tracking-tight">Expenses Tracker</h1>
           <p className="mt-3 text-xl text-muted-foreground">Track, analyze, and manage your expenses with ease</p>
+          <div className="mt-4 flex justify-center">
+            <ImportExportButtons />
+          </div>
         </motion.div>
         
         <div className="max-w-6xl mx-auto">
