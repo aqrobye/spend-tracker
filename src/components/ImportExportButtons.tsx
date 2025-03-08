@@ -2,7 +2,7 @@
 import React, { useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { useExpenses } from "@/context/ExpenseContext";
-import { FileDown, FileUp } from "lucide-react";
+import { FileDown, FileUp, Database } from "lucide-react";
 import { toast } from "sonner";
 
 const ImportExportButtons: React.FC = () => {

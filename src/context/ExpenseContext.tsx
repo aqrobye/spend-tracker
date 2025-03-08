@@ -1,6 +1,14 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Expense, loadExpenses, saveExpenses, generateId } from '../utils/expenseUtils';
+import { 
+  Expense, 
+  loadExpenses, 
+  saveExpenses, 
+  generateId, 
+  addExpenseToSupabase, 
+  deleteExpenseFromSupabase,
+  importExpensesToSupabase,
+  exportExpensesFromSupabase
+} from '../utils/expenseUtils';
 import { toast } from "sonner";
 
 interface ExpenseContextProps {
@@ -31,42 +39,83 @@ export const ExpenseProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Load expenses on mount
   useEffect(() => {
     const loadData = async () => {
-      const data = loadExpenses();
-      setExpenses(data);
-      setIsLoading(false);
+      setIsLoading(true);
+      try {
+        const data = await loadExpenses();
+        setExpenses(data);
+      } catch (error) {
+        console.error("Error loading expenses:", error);
+        toast.error("Failed to load expenses");
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     loadData();
   }, []);
 
-  // Save expenses to localStorage when they change
-  useEffect(() => {
-    if (!isLoading) {
-      saveExpenses(expenses);
-    }
-  }, [expenses, isLoading]);
-
   // Add a new expense
-  const addExpense = (expenseData: Omit<Expense, 'id'>) => {
-    const newExpense: Expense = {
-      ...expenseData,
-      id: generateId(),
-    };
-    
-    setExpenses(prevExpenses => [...prevExpenses, newExpense]);
-    toast.success("Expense added successfully");
+  const addExpense = async (expenseData: Omit<Expense, 'id'>) => {
+    try {
+      // Add to Supabase
+      const newExpense = await addExpenseToSupabase(expenseData);
+      
+      if (newExpense) {
+        // Update local state
+        setExpenses(prevExpenses => [...prevExpenses, newExpense]);
+        toast.success("Expense added successfully");
+      } else {
+        // Fallback to local storage if Supabase fails
+        const fallbackExpense: Expense = {
+          ...expenseData,
+          id: generateId(),
+        };
+        
+        setExpenses(prevExpenses => [...prevExpenses, fallbackExpense]);
+        toast.success("Expense added locally (offline mode)");
+        
+        // Save updated expenses to local storage
+        await saveExpenses([...expenses, fallbackExpense]);
+      }
+    } catch (error) {
+      console.error("Error adding expense:", error);
+      toast.error("Failed to add expense");
+    }
   };
 
   // Delete an expense
-  const deleteExpense = (id: string) => {
-    setExpenses(prevExpenses => prevExpenses.filter(expense => expense.id !== id));
-    toast.success("Expense deleted successfully");
+  const deleteExpense = async (id: string) => {
+    try {
+      // Delete from Supabase
+      const success = await deleteExpenseFromSupabase(id);
+      
+      if (success) {
+        // Update local state
+        setExpenses(prevExpenses => prevExpenses.filter(expense => expense.id !== id));
+        toast.success("Expense deleted successfully");
+      } else {
+        // Fallback to local storage if Supabase fails
+        const updatedExpenses = expenses.filter(expense => expense.id !== id);
+        setExpenses(updatedExpenses);
+        toast.success("Expense deleted locally (offline mode)");
+        
+        // Save updated expenses to local storage
+        await saveExpenses(updatedExpenses);
+      }
+    } catch (error) {
+      console.error("Error deleting expense:", error);
+      toast.error("Failed to delete expense");
+    }
   };
 
   // Export expenses to JSON file
-  const exportExpenses = () => {
+  const exportExpenses = async () => {
     try {
-      const jsonData = JSON.stringify(expenses, null, 2);
+      // Get expenses from Supabase
+      const expensesToExport = await exportExpensesFromSupabase();
+      
+      // Create JSON file for download
+      const jsonData = JSON.stringify(expensesToExport, null, 2);
       const blob = new Blob([jsonData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
@@ -86,29 +135,24 @@ export const ExpenseProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   // Import expenses from JSON file
-  const importExpenses = (importedExpenses: Expense[]) => {
+  const importExpenses = async (importedExpenses: Expense[]) => {
     try {
       // Validate imported data
       if (!Array.isArray(importedExpenses)) {
         throw new Error("Invalid data format");
       }
       
-      // Add new expenses to existing ones
-      setExpenses(prevExpenses => {
-        // Create a Set of existing expense IDs for quick lookup
-        const existingIds = new Set(prevExpenses.map(exp => exp.id));
-        
-        // Filter out duplicates
-        const uniqueImportedExpenses = importedExpenses.filter(exp => !existingIds.has(exp.id));
-        
-        if (uniqueImportedExpenses.length === 0) {
-          toast.info("No new expenses to import");
-          return prevExpenses;
-        }
-        
-        toast.success(`Imported ${uniqueImportedExpenses.length} expenses successfully`);
-        return [...prevExpenses, ...uniqueImportedExpenses];
-      });
+      // Import to Supabase
+      const importedCount = await importExpensesToSupabase(importedExpenses);
+      
+      if (importedCount > 0) {
+        // Reload expenses from Supabase
+        const updatedExpenses = await loadExpenses();
+        setExpenses(updatedExpenses);
+        toast.success(`Imported ${importedCount} expenses successfully`);
+      } else {
+        toast.info("No new expenses to import");
+      }
     } catch (error) {
       console.error("Error importing expenses:", error);
       toast.error("Failed to import expenses");
