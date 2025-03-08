@@ -44,7 +44,7 @@ export const loadExpenses = async (): Promise<Expense[]> => {
     
     // Transform Supabase data to match our Expense interface
     return data.map(item => ({
-      id: item.id.toString(),
+      id: item.id.toString(), // Convert number to string
       amount: item.amount || 0,
       category: item.category || 'Other',
       description: item.description || '',
@@ -94,7 +94,7 @@ export const addExpenseToSupabase = async (expense: Omit<Expense, 'id'>): Promis
     
     if (data && data.length > 0) {
       return {
-        id: data[0].id.toString(),
+        id: data[0].id.toString(), // Convert number to string
         amount: data[0].amount,
         category: data[0].category,
         description: data[0].description,
@@ -112,10 +112,12 @@ export const addExpenseToSupabase = async (expense: Omit<Expense, 'id'>): Promis
 // Delete an expense from Supabase
 export const deleteExpenseFromSupabase = async (id: string): Promise<boolean> => {
   try {
+    // Convert string id to number before using it in the query
+    // This is the fix for the TypeScript error
     const { error } = await supabase
       .from('expenses')
       .delete()
-      .eq('id', id);
+      .eq('id', parseInt(id));
     
     if (error) {
       console.error('Error deleting expense from Supabase:', error);
